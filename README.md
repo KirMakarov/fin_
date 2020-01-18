@@ -13,7 +13,7 @@ Script fetch from https://smart-lab.ru/ companies and its financial indicators:
 * clean_assets; 
 * book_value.
 
-Results save on disk to .csv file ''fin_indicators_companies.csv".
+Results save on disk to .csv file "fin_indicators_companies.csv".
 
 ## Requirements
 * Python 3.5 and or higher
@@ -21,6 +21,7 @@ Results save on disk to .csv file ''fin_indicators_companies.csv".
 ```sh
 pip3 install -r requirements.txt 
 ```
+* Also for upload to google sheet, need get json key file.
 
 ## Run
 ```sh

@@ -65,6 +65,7 @@ class FinIndicatorsCompany(HtmlFetcher):
         self.preference_stock = preference_stock
 
         self.company_name = '-'
+        self.profit = '-'
         self.average_profit = '-'
         self.capitalization = '-'
         self.dividends_ordinary = '-'
@@ -84,6 +85,9 @@ class FinIndicatorsCompany(HtmlFetcher):
         self.fresh_report = self.__check_fresh_report(soup)
 
         self.company_name = soup.find('h1').text.split('(')[0].strip()
+        # чистая прибыль
+        self.profit = self.__find_value_in_tags_td(soup, 'net_income', 'ltm')
+        # средняя чистая прибыль
         self.average_profit = self.__find_value_in_tags_td(soup, 'net_income', 'mean')
         self.capitalization = self.__find_value_in_tags_td(soup, 'market_cap', 'ltm')
         self.ev = self.__find_value_in_tags_td(soup, 'ev', 'ltm')
@@ -154,7 +158,7 @@ class FinIndicatorsCompany(HtmlFetcher):
         return count
 
     @classmethod
-    def check_last_fin_year(cls):
+    def calc_last_fin_year(cls):
         # смотрим начиная с даты 1 июля. с 1,07,2020 ищем данные по 2019 г. Если их нет, то поля пустые.
         today = date.today()
         if today.month < date(1, 7, 1).month:
@@ -163,40 +167,18 @@ class FinIndicatorsCompany(HtmlFetcher):
             cls.last_fin_year = today.year - 1
 
     @property
-    def indicators(self):
-        return [
-            self.tiker,
-            self.ordinary_stock,
-            self.preference_stock,
-            self.company_name,
-            self.average_profit,
-            self.capitalization,
-            self.dividends_ordinary,
-            self.dividends_preference,
-            self.ev,
-            self.clean_assets,
-            self.book_value
-        ]
-
-    @staticmethod
-    def indicators_names():
-        return [
-            'tiker', 'ordinary_stock', 'preference_stock', 'company_name', 'average_profit',
-            'capitalization', 'dividends_ordinary', 'dividends_preference', 'ev', 'clean_assets', 'book_value',
-        ]
-
-    @property
     def indicators_ordinary(self):
         return OrderedDict([
             ('company_name', self.company_name),
             ('tiker', self.tiker),
             ('stock', self.ordinary_stock),
-            ('dividends', self.dividends_ordinary),
+            ('profit', self.profit),
             ('average_profit', self.average_profit),
             ('capitalization', self.capitalization),
             ('ev', self.ev),
             ('clean_assets', self.clean_assets),
-            ('book_value', self.book_value)
+            ('book_value', self.book_value),
+            ('dividends', self.dividends_ordinary),
         ])
 
     @property
@@ -205,46 +187,54 @@ class FinIndicatorsCompany(HtmlFetcher):
             ('company_name', self.company_name),
             ('tiker', self.tiker),
             ('stock', self.preference_stock),
-            ('dividends', self.dividends_preference),
+            ('profit', self.profit),
             ('average_profit', self.average_profit),
             ('capitalization', self.capitalization),
             ('ev', self.ev),
             ('clean_assets', self.clean_assets),
-            ('book_value', self.book_value)
+            ('book_value', self.book_value),
+            ('dividends', self.dividends_preference),
         ])
+
+
+def save_to_file(companies_indicators, file_patn_and_name):
+    print("Save to file.")
+    with open(file_patn_and_name, 'w') as result:
+        header = False
+        for indicators in companies_indicators.items():
+            if not header:
+                result.write('; '.join(indicators.indicators_ordinary))
+                result.write('\n')
+                header = True
+
+            if indicators.ordinary_stock != '-':
+                line = '; '.join([str(elem) for elem in indicators.indicators_ordinary.values()])
+                result.write(line)
+                result.write('\n')
+
+            if indicators.preference_stock != '-':
+                line = '; '.join([str(elem) for elem in indicators.indicators_preference.values()])
+                result.write(line)
+                result.write('\n')
 
 
 def controller():
     companies_indicators = dict()
-    FinIndicatorsCompany.check_last_fin_year()
+    FinIndicatorsCompany.calc_last_fin_year()
 
     companies = FinancialIndicatorsCompanies('https://smart-lab.ru/q/shares/')
     companies.fetch_companies()
 
-    with open('fin_indicators_companies.csv', 'w') as report:
-        header = False
-        for company, costs_stoks in companies.companies_and_stock.items():
-            ordinary_stock = costs_stoks.get('ordinary stock', '-')
-            preference_stock = costs_stoks.get('preference stock', '-')
-            companies_indicators[company] = FinIndicatorsCompany(company, ordinary_stock, preference_stock)
-            companies_indicators[company].fetch_fin_indicators()
+    print('Start fetch data.\n')
+    for company, costs_stoks in companies.companies_and_stock.items():
+        ordinary_stock = costs_stoks.get('ordinary stock', '-')
+        preference_stock = costs_stoks.get('preference stock', '-')
+        companies_indicators[company] = FinIndicatorsCompany(company, ordinary_stock, preference_stock)
+        companies_indicators[company].fetch_fin_indicators()
 
-            print(companies_indicators[company].company_name, companies_indicators[company].tiker)
+        print(companies_indicators[company].company_name, companies_indicators[company].tiker)
 
-            if not header:
-                report.write('; '.join(companies_indicators[company].indicators_ordinary))
-                report.write('\n')
-                header = True
-
-            if companies_indicators[company].ordinary_stock != '-':
-                line = '; '.join([str(elem) for elem in companies_indicators[company].indicators_ordinary.values()])
-                report.write(line)
-                report.write('\n')
-
-            if companies_indicators[company].preference_stock != '-':
-                line = '; '.join([str(elem) for elem in companies_indicators[company].indicators_preference.values()])
-                report.write(line)
-                report.write('\n')
+    save_to_file(companies_indicators, 'fin_indicators_companies.csv')
 
 
 if __name__ == '__main__':
