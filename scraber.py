@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+
+"""Script fetch from https://smart-lab.ru/ companies and its financial indicators"""
+
+import re
+
 from collections import OrderedDict
 from datetime import date
 from statistics import mean
@@ -12,8 +18,10 @@ class BadResponseCode(ConnectionError):
 
 
 class HtmlFetcher:
+    """HTML file downloader"""
     @staticmethod
     def fetch_page(url):
+        """Download html page and return text from this page."""
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0',
         }
@@ -24,11 +32,11 @@ class HtmlFetcher:
 
 
 class FinancialIndicatorsCompanies(HtmlFetcher):
-    ignore_list = ['IMOEX', 'RU000A0JTXM2', 'RU000A0JUQZ6', 'RU000A0JVEZ0', 'RU000A0JVT35', 'GEMA', 'RUSI']
-
-    def __init__(self, url):
+    """Loads a page with a list of companies and finds tickers and stock prices."""
+    def __init__(self, url, ignore_list):
         self.url = url
         self.companies_and_stock = dict()
+        self.ignore_list = ignore_list
 
     def fetch_companies(self):
         html = self.fetch_page(self.url)
@@ -43,7 +51,7 @@ class FinancialIndicatorsCompanies(HtmlFetcher):
             stock_type = 'ordinary stock'
             if tiker in self.ignore_list:
                 continue
-            # Определяем работаем с привелигированными акциями
+            # Defines working with preferred shares
             if len(tiker) == 5:
                 tiker = tiker[:4]
                 stock_type = 'preference stock'
@@ -54,13 +62,15 @@ class FinancialIndicatorsCompanies(HtmlFetcher):
 
 
 class FinIndicatorsCompany(HtmlFetcher):
+    """Loads a page with the financial statements of the company and finds financial indicators on it."""
     last_fin_year = None
 
-    def __init__(self, tiker, ordinary_stock, preference_stock=None):
+    def __init__(self, tiker, ordinary_stock, preference_stock=None, url_pattern=''):
         self.count_reports = None
         self.fresh_report = False
 
         self.tiker = tiker
+        self.url = url_pattern.format(tiker)
         self.ordinary_stock = ordinary_stock
         self.preference_stock = preference_stock
 
@@ -70,16 +80,16 @@ class FinIndicatorsCompany(HtmlFetcher):
         self.capitalization = '-'
         self.dividends_ordinary = '-'
         self.dividends_preference = '-'
-        self.ev = '-'
+        # стоимость предприятия - EV
+        self.enterprise_value = '-'
         # Чистые активы
         self.clean_assets = '-'
         # балансовая стоимость
         self.book_value = '-'
 
     def fetch_fin_indicators(self):
-        url = f'https://smart-lab.ru/q/{self.tiker}/f/y/'
-        # soup = BeautifulSoup(mock_request(self.tiker), 'lxml')
-        soup = BeautifulSoup(self.fetch_page(url), 'lxml')
+        """Loads a page with the financial statements of the company and finds financial indicators on it."""
+        soup = BeautifulSoup(self.fetch_page(self.url), 'lxml')
 
         self.count_reports = self.__count_reports(soup)
         self.fresh_report = self.__check_fresh_report(soup)
@@ -90,7 +100,7 @@ class FinIndicatorsCompany(HtmlFetcher):
         # средняя чистая прибыль
         self.average_profit = self.__find_value_in_tags_td(soup, 'net_income', 'mean')
         self.capitalization = self.__find_value_in_tags_td(soup, 'market_cap', 'ltm')
-        self.ev = self.__find_value_in_tags_td(soup, 'ev', 'ltm')
+        self.enterprise_value = self.__find_value_in_tags_td(soup, 'ev', 'ltm')
         self.dividends_ordinary = self.__find_value_in_tags_td(soup, 'dividend', 'last year')
         self.dividends_preference = self.__find_value_in_tags_td(soup, 'dividend_pr', 'last year')
         # Чистые активы
@@ -107,15 +117,20 @@ class FinIndicatorsCompany(HtmlFetcher):
         find_value = '-'
 
         if type_find_value == 'ltm':
+            # Column number ltm 2 after the last column of the report self.count_reports + 2
+            # The number of the last column with the report is equal to the number of reports self.count_reports
+            num_ltm_column = self.count_reports+2
             try:
-                find_value = self.__get_float_from_text(tds[self.count_reports+2].text)
+                find_value = self.__get_float_from_text(tds[num_ltm_column].text)
             except IndexError:
                 find_value = '-'
+
         elif type_find_value == 'mean':
             if not self.fresh_report:
                 return '-'
             search_res = []
-            for tag_td in tds[1:1+self.count_reports]:
+            # The number of the last column with the report is equal to the number of reports self.count_reports
+            for tag_td in tds[1:self.count_reports+1]:
                 indicator = self.__get_float_from_text(tag_td.text)
                 if indicator == '-':
                     find_value = '-'
@@ -131,10 +146,12 @@ class FinIndicatorsCompany(HtmlFetcher):
         return find_value
 
     def __check_fresh_report(self, soup):
+        """Checks the report for freshness."""
         try:
             year_last_report = int(soup.find('tr', class_='header_row').find_all('td')[self.count_reports].text)
         except ValueError:
             return False
+
         if self.last_fin_year > year_last_report:
             return False
         else:
@@ -159,7 +176,7 @@ class FinIndicatorsCompany(HtmlFetcher):
 
     @classmethod
     def calc_last_fin_year(cls):
-        # смотрим начиная с даты 1 июля. с 1,07,2020 ищем данные по 2019 г. Если их нет, то поля пустые.
+        """Last fiscal year calculate. Year select about 1 july."""
         today = date.today()
         if today.month < date(1, 7, 1).month:
             cls.last_fin_year = today.year - 2
@@ -168,40 +185,44 @@ class FinIndicatorsCompany(HtmlFetcher):
 
     @property
     def indicators_ordinary(self):
+        """Return order dict with finance indicators and ordinary stock"""
         return OrderedDict([
-            ('company_name', self.company_name),
+            ('company name', self.company_name),
             ('tiker', self.tiker),
             ('stock', self.ordinary_stock),
             ('profit', self.profit),
-            ('average_profit', self.average_profit),
+            ('average profit', self.average_profit),
             ('capitalization', self.capitalization),
-            ('ev', self.ev),
-            ('clean_assets', self.clean_assets),
-            ('book_value', self.book_value),
+            ('enterprise value', self.enterprise_value),
+            ('clean assets', self.clean_assets),
+            ('book value', self.book_value),
             ('dividends', self.dividends_ordinary),
         ])
 
     @property
     def indicators_preference(self):
+        """Return order dict with finance indicators and preference stock"""
         return OrderedDict([
-            ('company_name', self.company_name),
-            ('tiker', self.tiker),
+            ('company name', self.company_name),
+            # + 'P" because this preference stock
+            ('tiker', self.tiker + 'P'),
             ('stock', self.preference_stock),
             ('profit', self.profit),
-            ('average_profit', self.average_profit),
+            ('average profit', self.average_profit),
             ('capitalization', self.capitalization),
-            ('ev', self.ev),
-            ('clean_assets', self.clean_assets),
-            ('book_value', self.book_value),
+            ('enterprise value', self.enterprise_value),
+            ('clean assets', self.clean_assets),
+            ('book value', self.book_value),
             ('dividends', self.dividends_preference),
         ])
 
 
-def save_to_file(companies_indicators, file_patn_and_name):
+def save_to_file(companies_indicators, file_path_and_name):
+    """Save file on disk"""
     print("Save to file.")
-    with open(file_patn_and_name, 'w') as result:
+    with open(file_path_and_name, 'w') as result:
         header = False
-        for indicators in companies_indicators.items():
+        for indicators in companies_indicators.values():
             if not header:
                 result.write('; '.join(indicators.indicators_ordinary))
                 result.write('\n')
@@ -216,20 +237,30 @@ def save_to_file(companies_indicators, file_patn_and_name):
                 line = '; '.join([str(elem) for elem in indicators.indicators_preference.values()])
                 result.write(line)
                 result.write('\n')
+    print("Write to file complete.")
 
 
 def controller():
+    # Starting cell position for upload data to google table
+    start_cell = (2, 5)
+
+    companies_ignore_list = ['IMOEX', 'RU000A0JTXM2', 'RU000A0JUQZ6', 'RU000A0JVEZ0', 'RU000A0JVT35', 'GEMA', 'RUSI']
+    companies_list_url = 'https://smart-lab.ru/q/shares/'
+    company_url_templ = 'https://smart-lab.ru/q/{}/f/y/'
+
     companies_indicators = dict()
     FinIndicatorsCompany.calc_last_fin_year()
 
-    companies = FinancialIndicatorsCompanies('https://smart-lab.ru/q/shares/')
+    companies = FinancialIndicatorsCompanies(companies_list_url, companies_ignore_list)
     companies.fetch_companies()
 
     print('Start fetch data.\n')
     for company, costs_stoks in companies.companies_and_stock.items():
         ordinary_stock = costs_stoks.get('ordinary stock', '-')
         preference_stock = costs_stoks.get('preference stock', '-')
-        companies_indicators[company] = FinIndicatorsCompany(company, ordinary_stock, preference_stock)
+        companies_indicators[company] = FinIndicatorsCompany(
+            company, ordinary_stock, preference_stock, company_url_templ
+        )
         companies_indicators[company].fetch_fin_indicators()
 
         print(companies_indicators[company].company_name, companies_indicators[company].tiker)
