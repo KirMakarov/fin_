@@ -88,53 +88,65 @@ class FinIndicatorsCompany(HtmlFetcher):
 
         self.company_name = soup.find('h1').text.split('(')[0].strip()
         # чистая прибыль
-        self.profit = self.__find_value_in_tags_td(soup, 'net_income', 'ltm')
+        self.profit = self.__find_ltm_value_in_tags_td(soup, 'net_income')
         # средняя чистая прибыль
-        self.average_profit = self.__find_value_in_tags_td(soup, 'net_income', 'mean')
-        self.capitalization = self.__find_value_in_tags_td(soup, 'market_cap', 'ltm')
-        self.enterprise_value = self.__find_value_in_tags_td(soup, 'ev', 'ltm')
-        self.dividends_ordinary = self.__find_value_in_tags_td(soup, 'dividend', 'last year')
-        self.dividends_preference = self.__find_value_in_tags_td(soup, 'dividend_pr', 'last year')
+        self.average_profit = self.__find_mean_value_in_tags_td(soup, 'net_income')
+        self.capitalization = self.__find_ltm_value_in_tags_td(soup, 'market_cap')
+        self.enterprise_value = self.__find_ltm_value_in_tags_td(soup, 'ev')
+        self.dividends_ordinary = self.__find_last_value_in_tags_td(soup, 'dividend')
+        self.dividends_preference = self.__find_last_value_in_tags_td(soup, 'dividend_pr')
         # Чистые активы
-        self.clean_assets = self.__find_value_in_tags_td(soup, 'assets', 'ltm')
+        self.clean_assets = self.__find_ltm_value_in_tags_td(soup, 'assets')
         # Балансовая стоимость
-        self.book_value = self.__find_value_in_tags_td(soup, 'book_value', 'ltm')
+        self.book_value = self.__find_ltm_value_in_tags_td(soup, 'book_value')
 
-    def __find_value_in_tags_td(self, soup, field, type_find_value):
-        find_value = self.default_val
+    def __find_ltm_value_in_tags_td(self, soup, field):
+        tds = self.__get_row_in_table(soup, field)
+        if not tds:
+            return self.default_val
+
+        # Column number ltm 2 after the last column of the report self.count_reports + 2
+        # The number of the last column with the report is equal to the number of reports self.count_reports
+        num_ltm_column = self.count_reports + 2
         try:
-            tds = soup.find('tr', field=field).find_all('td')
+            return self.__get_float_from_text(tds[num_ltm_column].text)
+        except IndexError:
+            return self.default_val
+
+    def __find_mean_value_in_tags_td(self, soup, field):
+        if not self.fresh_report:
+            return self.default_val
+
+        tds = self.__get_row_in_table(soup, field)
+        if not tds:
+            return self.default_val
+
+        search_res = list()
+        # The number of the last column with the report is equal to the number of reports self.count_reports
+        for tag_td in tds[1:self.count_reports + 1]:
+            indicator = self.__get_float_from_text(tag_td.text)
+            if indicator is self.default_val:
+                return self.default_val
+            search_res.append(indicator)
+
+        return round(mean(search_res), 2)
+
+    def __find_last_value_in_tags_td(self, soup, field):
+        if not self.fresh_report:
+            return self.default_val
+
+        tds = self.__get_row_in_table(soup, field)
+        if not tds:
+            return self.default_val
+        # self.count_reports is also the last year report column number
+        return self.__get_float_from_text(tds[self.count_reports].text)
+
+    @staticmethod
+    def __get_row_in_table(soup, field):
+        try:
+            return soup.find('tr', field=field).find_all('td')
         except AttributeError:
-            return find_value
-
-        if type_find_value == 'ltm':
-            # Column number ltm 2 after the last column of the report self.count_reports + 2
-            # The number of the last column with the report is equal to the number of reports self.count_reports
-            num_ltm_column = self.count_reports+2
-            try:
-                find_value = self.__get_float_from_text(tds[num_ltm_column].text)
-            except IndexError:
-                find_value = self.default_val
-
-        elif type_find_value == 'mean':
-            if not self.fresh_report:
-                return find_value
-            search_res = []
-            # The number of the last column with the report is equal to the number of reports self.count_reports
-            for tag_td in tds[1:self.count_reports+1]:
-                indicator = self.__get_float_from_text(tag_td.text)
-                if indicator == self.default_val:
-                    find_value = self.default_val
-                    break
-                search_res.append(self.__get_float_from_text(tag_td.text))
-            else:
-                find_value = round(mean(search_res), 2)
-        elif type_find_value == 'last year':
-            if not self.fresh_report:
-                find_value = self.default_val
-            else:
-                find_value = self.__get_float_from_text(tds[self.count_reports].text)
-        return find_value
+            return
 
     def __check_fresh_report(self, soup):
         """Checks the report for freshness."""
