@@ -2,15 +2,18 @@
 
 """Script fetch from https://smart-lab.ru/ companies and its financial indicators"""
 
+import argparse
 import re
 
 from collections import OrderedDict
 from datetime import date
 from statistics import mean
 
+import gspread
 import requests
 
 from bs4 import BeautifulSoup
+from oauth2client.service_account import ServiceAccountCredentials
 
 
 class BadResponseCode(ConnectionError):
@@ -240,6 +243,66 @@ def save_to_file(companies_indicators, file_path_and_name):
     print("Write to file complete.")
 
 
+class Gtable:
+    """Class for upload cell list to google table"""
+    def __init__(self, url_table, num_list_table, json_key_file, start_cell):
+        scope = ['https://spreadsheets.google.com/feeds',
+                 'https://www.googleapis.com/auth/drive']
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(json_key_file, scope)
+        gspr = gspread.authorize(credentials)
+        wsh = gspr.open_by_url(url_table)
+        self.worksheet = wsh.get_worksheet(num_list_table)
+        self.cell_list = []
+        self.current_row, self.current_column = start_cell
+
+    def upload(self):
+        """Upload cell list to google table"""
+        self.worksheet.update_cells(self.cell_list)
+
+    def add_line_cells(self, company_indicators):
+        """Adds cells in order on one line. And increment the number current line table by 1"""
+        self.cell_list += [
+            gspread.models.Cell(self.current_row, num_col, value=param)
+            for num_col, param in enumerate(company_indicators.values(), start=self.current_column)
+        ]
+        self.current_row += 1
+
+
+def save_to_gsheet(companies_indicators, table_url, google_key_file, start_cell):
+    """Save data to goggle table."""
+    print('Create table')
+    num_list = 1
+    table = Gtable(table_url, num_list, google_key_file, start_cell)
+    for indicators in companies_indicators.values():
+        if indicators.ordinary_stock != '-':
+            table.add_line_cells(indicators.indicators_ordinary)
+        if indicators.preference_stock != '-':
+            table.add_line_cells(indicators.indicators_preference)
+    print('Upload table')
+    table.upload()
+    print("Upload data to goggle table complete.")
+
+
+def get_arg_params():
+    """Startup key getting. Get command line arguments and return dict with startup parameters."""
+    cmd_parser = argparse.ArgumentParser(
+        description='Script fetch from https://smart-lab.ru/ companies and its financial indicators.'
+    )
+    cmd_parser.add_argument('-g',
+                            dest='gsheet',
+                            nargs=2,
+                            default=[None, None],
+                            help='Link to google sheet and file name JSON keyfile from google. '
+                                 'Details see in the README.MD'
+                            )
+    cmd_parser.add_argument('-f',
+                            dest='file_name',
+                            default='',
+                            help='Save result to file. Need write file name. Example: "fin_indicators_companies.csv"'
+                            )
+    return vars(cmd_parser.parse_args())
+
+
 def controller():
     # Starting cell position for upload data to google table
     start_cell = (2, 5)
@@ -247,6 +310,11 @@ def controller():
     companies_ignore_list = ['IMOEX', 'RU000A0JTXM2', 'RU000A0JUQZ6', 'RU000A0JVEZ0', 'RU000A0JVT35', 'GEMA', 'RUSI']
     companies_list_url = 'https://smart-lab.ru/q/shares/'
     company_url_templ = 'https://smart-lab.ru/q/{}/f/y/'
+
+    params = get_arg_params()
+    if not params['file_name'] and not all(params['gsheet']):
+        print('No option selected for saving results. \nSee help message: "scraber.py -h" \nExit from app.')
+        exit(1)
 
     companies_indicators = dict()
     FinIndicatorsCompany.calc_last_fin_year()
@@ -265,7 +333,12 @@ def controller():
 
         print(companies_indicators[company].company_name, companies_indicators[company].tiker)
 
-    save_to_file(companies_indicators, 'fin_indicators_companies.csv')
+    if params['file_name']:
+        # Replacing invalid characters in a file name
+        file_name = re.sub(r'[\\/:*?"<>|+]', '', params['file_name'])
+        save_to_file(companies_indicators, file_name)
+    if params['gsheet'][0]:
+        save_to_gsheet(companies_indicators, *params['gsheet'], start_cell)
 
 
 if __name__ == '__main__':
