@@ -5,7 +5,7 @@
 import argparse
 import re
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from datetime import date
 from statistics import mean
 
@@ -38,19 +38,17 @@ class FinancialIndicatorsCompanies(HtmlFetcher):
     """Loads a page with a list of companies and finds tickers and stock prices."""
     def __init__(self, url, ignore_list):
         self.url = url
-        self.companies_and_stock = dict()
+        self.companies_and_stock = defaultdict(dict)
         self.ignore_list = ignore_list
 
     def fetch_companies(self):
         html = self.fetch_page(self.url)
         soup = BeautifulSoup(html, 'lxml')
         tags_tr = soup.find('table', class_='simple-little-table trades-table').find_all('tr')
-        for tag_tr in tags_tr:
+        # Thirst row skip because this is header
+        for tag_tr in tags_tr[1:]:
             tds = tag_tr.find_all('td')
-            try:
-                tiker = tds[3].text
-            except IndexError:
-                continue
+            tiker = tds[3].text
             stock_type = 'ordinary stock'
             if tiker in self.ignore_list:
                 continue
@@ -59,8 +57,6 @@ class FinancialIndicatorsCompanies(HtmlFetcher):
                 tiker = tiker[:4]
                 stock_type = 'preference stock'
             coast = tds[6].text
-            if not self.companies_and_stock.get(tiker):
-                self.companies_and_stock[tiker] = dict()
             self.companies_and_stock[tiker].update({stock_type: coast})
 
 
