@@ -64,27 +64,20 @@ class FinIndicatorsCompany(HtmlFetcher):
     """Loads a page with the financial statements of the company and finds financial indicators on it."""
     last_fin_year = None
 
-    def __init__(self, tiker, ordinary_stock, preference_stock=None, url_pattern=''):
+    def __init__(self, tiker, ordinary_stock, preference_stock=None, url_pattern='', default_val=str()):
         self.count_reports = None
         self.fresh_report = False
+        self.default_val = default_val
 
         self.tiker = tiker
         self.url = url_pattern.format(tiker)
         self.ordinary_stock = ordinary_stock
         self.preference_stock = preference_stock
 
-        self.company_name = '-'
-        self.profit = '-'
-        self.average_profit = '-'
-        self.capitalization = '-'
-        self.dividends_ordinary = '-'
-        self.dividends_preference = '-'
-        # стоимость предприятия - EV
-        self.enterprise_value = '-'
-        # Чистые активы
-        self.clean_assets = '-'
-        # балансовая стоимость
-        self.book_value = '-'
+        self.company_name = self.profit = self.average_profit = self.capitalization = default_val
+        self.dividends_ordinary = self.dividends_preference = default_val
+        # стоимость предприятия - EV | Чистые активы | балансовая стоимость
+        self.enterprise_value = self.clean_assets = self.book_value = default_val
 
     def fetch_fin_indicators(self):
         """Loads a page with the financial statements of the company and finds financial indicators on it."""
@@ -108,12 +101,11 @@ class FinIndicatorsCompany(HtmlFetcher):
         self.book_value = self.__find_value_in_tags_td(soup, 'book_value', 'ltm')
 
     def __find_value_in_tags_td(self, soup, field, type_find_value):
+        find_value = self.default_val
         try:
             tds = soup.find('tr', field=field).find_all('td')
         except AttributeError:
-            return '-'
-
-        find_value = '-'
+            return find_value
 
         if type_find_value == 'ltm':
             # Column number ltm 2 after the last column of the report self.count_reports + 2
@@ -122,24 +114,24 @@ class FinIndicatorsCompany(HtmlFetcher):
             try:
                 find_value = self.__get_float_from_text(tds[num_ltm_column].text)
             except IndexError:
-                find_value = '-'
+                find_value = self.default_val
 
         elif type_find_value == 'mean':
             if not self.fresh_report:
-                return '-'
+                return find_value
             search_res = []
             # The number of the last column with the report is equal to the number of reports self.count_reports
             for tag_td in tds[1:self.count_reports+1]:
                 indicator = self.__get_float_from_text(tag_td.text)
-                if indicator == '-':
-                    find_value = '-'
+                if indicator == self.default_val:
+                    find_value = self.default_val
                     break
                 search_res.append(self.__get_float_from_text(tag_td.text))
             else:
                 find_value = round(mean(search_res), 2)
         elif type_find_value == 'last year':
             if not self.fresh_report:
-                find_value = '-'
+                find_value = self.default_val
             else:
                 find_value = self.__get_float_from_text(tds[self.count_reports].text)
         return find_value
@@ -156,12 +148,11 @@ class FinIndicatorsCompany(HtmlFetcher):
         else:
             return True
 
-    @staticmethod
-    def __get_float_from_text(text):
+    def __get_float_from_text(self, text):
         try:
             return float(text.strip().replace(' ', ''))
         except ValueError:
-            return '-'
+            return self.default_val
 
     @staticmethod
     def __count_reports(soup):
@@ -216,7 +207,7 @@ class FinIndicatorsCompany(HtmlFetcher):
         ])
 
 
-def save_to_file(companies_indicators, file_path_and_name):
+def save_to_file(companies_indicators, file_path_and_name, default_cell_val=str()):
     """Save file on disk"""
     print("Save to file.")
     with open(file_path_and_name, 'w') as result:
@@ -227,12 +218,12 @@ def save_to_file(companies_indicators, file_path_and_name):
                 result.write('\n')
                 header = True
 
-            if indicators.ordinary_stock != '-':
+            if indicators.ordinary_stock != default_cell_val:
                 line = '; '.join([str(elem) for elem in indicators.indicators_ordinary.values()])
                 result.write(line)
                 result.write('\n')
 
-            if indicators.preference_stock != '-':
+            if indicators.preference_stock != default_cell_val:
                 line = '; '.join([str(elem) for elem in indicators.indicators_preference.values()])
                 result.write(line)
                 result.write('\n')
@@ -264,15 +255,15 @@ class Gtable:
         self.current_row += 1
 
 
-def save_to_gsheet(companies_indicators, table_url, google_key_file, start_cell):
+def save_to_gsheet(companies_indicators, table_url, google_key_file, start_cell, default_cell_val):
     """Save data to goggle table."""
     print('Create table')
     num_list = 1
     table = Gtable(table_url, num_list, google_key_file, start_cell)
     for indicators in companies_indicators.values():
-        if indicators.ordinary_stock != '-':
+        if indicators.ordinary_stock != default_cell_val:
             table.add_line_cells(indicators.indicators_ordinary)
-        if indicators.preference_stock != '-':
+        if indicators.preference_stock != default_cell_val:
             table.add_line_cells(indicators.indicators_preference)
     print('Upload table')
     table.upload()
@@ -300,8 +291,9 @@ def get_arg_params():
 
 
 def controller():
-    # Starting cell position for upload data to google table
+    # Starting cell position (row, column) for upload data to google table
     start_cell = (2, 5)
+    default_cell_val = str()
 
     companies_ignore_list = ['IMOEX', 'RU000A0JTXM2', 'RU000A0JUQZ6', 'RU000A0JVEZ0', 'RU000A0JVT35', 'GEMA', 'RUSI']
     companies_list_url = 'https://smart-lab.ru/q/shares/'
@@ -320,11 +312,10 @@ def controller():
 
     print('Start fetch data.\n')
     for company, costs_stoks in companies.companies_and_stock.items():
-        ordinary_stock = costs_stoks.get('ordinary stock', '-')
-        preference_stock = costs_stoks.get('preference stock', '-')
-        companies_indicators[company] = FinIndicatorsCompany(
-            company, ordinary_stock, preference_stock, company_url_templ
-        )
+        ordinary_stock = costs_stoks.get('ordinary stock', default_cell_val)
+        preference_stock = costs_stoks.get('preference stock', default_cell_val)
+        companies_indicators[company] = FinIndicatorsCompany(company, ordinary_stock, preference_stock,
+                                                             company_url_templ, default_cell_val)
         companies_indicators[company].fetch_fin_indicators()
 
         print(companies_indicators[company].company_name, companies_indicators[company].tiker)
@@ -332,9 +323,9 @@ def controller():
     if params['file_name']:
         # Replacing invalid characters in a file name
         file_name = re.sub(r'[\\/:*?"<>|+]', '', params['file_name'])
-        save_to_file(companies_indicators, file_name)
+        save_to_file(companies_indicators, file_name, default_cell_val)
     if params['gsheet'][0]:
-        save_to_gsheet(companies_indicators, *params['gsheet'], start_cell)
+        save_to_gsheet(companies_indicators, *params['gsheet'], start_cell, default_cell_val)
 
 
 if __name__ == '__main__':
