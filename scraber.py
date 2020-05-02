@@ -34,15 +34,16 @@ class HtmlFetcher:
         return response.text
 
 
-class FinancialIndicatorsCompanies(HtmlFetcher):
+class FinancialIndicatorsCompanies:
     """Loads a page with a list of companies and finds tickers and stock prices."""
     def __init__(self, url, ignore_list):
         self.url = url
         self.companies_and_stock = defaultdict(dict)
         self.ignore_list = ignore_list
+        self.downloader = HtmlFetcher()
 
     def fetch_companies(self):
-        html = self.fetch_page(self.url)
+        html = self.downloader.fetch_page(self.url)
         soup = BeautifulSoup(html, 'lxml')
         tags_tr = soup.find('table', class_='simple-little-table trades-table').find_all('tr')
         # Thirst row skip because this is header
@@ -60,11 +61,12 @@ class FinancialIndicatorsCompanies(HtmlFetcher):
             self.companies_and_stock[tiker].update({stock_type: coast})
 
 
-class FinIndicatorsCompany(HtmlFetcher):
+class FinIndicatorsCompany:
     """Loads a page with the financial statements of the company and finds financial indicators on it."""
     last_fin_year = None
 
     def __init__(self, tiker, ordinary_stock, preference_stock=None, url_pattern='', default_val=str()):
+        self.downloader = HtmlFetcher()
         self.count_reports = None
         self.fresh_report = False
         self.default_val = default_val
@@ -81,7 +83,7 @@ class FinIndicatorsCompany(HtmlFetcher):
 
     def fetch_fin_indicators(self):
         """Loads a page with the financial statements of the company and finds financial indicators on it."""
-        soup = BeautifulSoup(self.fetch_page(self.url), 'lxml')
+        soup = BeautifulSoup(self.downloader.fetch_page(self.url), 'lxml')
 
         self.count_reports = self.__count_reports(soup)
         self.fresh_report = self.__check_fresh_report(soup)
