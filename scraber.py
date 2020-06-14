@@ -50,31 +50,31 @@ class FinancialIndicatorsCompanies:
         # Thirst row skip because this is header
         for tag_tr in tags_tr[1:]:
             tds = tag_tr.find_all('td')
-            tiker = tds[3].text
-            if not tds[5].a or tiker in self.ignore_list:
+            ticker = tds[3].text
+            if not tds[5].a or ticker in self.ignore_list:
                 continue
             analysis_url = tds[5].a.get('href')
             stock_type = 'ordinary stock'
             # Defines working with preferred shares
-            if len(tiker) == 5:
-                tiker = tiker[:4]
+            if len(ticker) == 5:
+                ticker = ticker[:4]
                 stock_type = 'preference stock'
             coast = tds[6].text
-            self.companies_and_stock[tiker].update({stock_type: coast})
-            self.companies_and_stock[tiker].update({'analysis_url': analysis_url})
+            self.companies_and_stock[ticker].update({stock_type: coast})
+            self.companies_and_stock[ticker].update({'analysis_url': analysis_url})
 
 
 class FinIndicatorsCompany:
     """Loads a page with the financial statements of the company and finds financial indicators on it."""
     last_fin_year = None
 
-    def __init__(self, tiker, base_url, analysis_url, ordinary_stock, preference_stock=None, default_val=''):
+    def __init__(self, ticker, base_url, analysis_url, ordinary_stock, preference_stock=None, default_val=''):
         self.downloader = HtmlFetcher()
         self.count_reports = None
         self.fresh_report = False
         self.default_val = default_val
 
-        self.tiker = tiker
+        self.ticker = ticker
         if analysis_url:
             self.url = urljoin(base_url, analysis_url)
         else:
@@ -203,7 +203,7 @@ class FinIndicatorsCompany:
         """Return order dict with finance indicators and ordinary stock"""
         return OrderedDict([
             ('company name', self.company_name),
-            ('tiker', self.tiker),
+            ('ticker', self.ticker),
             ('stock', self.ordinary_stock),
             ('profit', self.profit),
             ('average profit', self.average_profit),
@@ -220,7 +220,7 @@ class FinIndicatorsCompany:
         return OrderedDict([
             ('company name', self.company_name),
             # + 'P" because this preference stock
-            ('tiker', self.tiker + 'P'),
+            ('ticker', self.ticker + 'P'),
             ('stock', self.preference_stock),
             ('profit', self.profit),
             ('average profit', self.average_profit),
@@ -343,7 +343,7 @@ def controller():
                                                              ordinary_stock, preference_stock, default_cell_val)
         companies_indicators[company].fetch_fin_indicators()
 
-        print(companies_indicators[company].company_name, companies_indicators[company].tiker)
+        print(companies_indicators[company].company_name, companies_indicators[company].ticker)
 
     if params['file_name']:
         # Replacing invalid characters in a file name
