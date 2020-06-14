@@ -8,6 +8,7 @@ import re
 from collections import OrderedDict, defaultdict
 from datetime import date
 from statistics import mean
+from urllib.parse import urljoin
 
 import gspread
 import requests
@@ -50,29 +51,34 @@ class FinancialIndicatorsCompanies:
         for tag_tr in tags_tr[1:]:
             tds = tag_tr.find_all('td')
             tiker = tds[3].text
-            stock_type = 'ordinary stock'
-            if tiker in self.ignore_list:
+            if not tds[5].a or tiker in self.ignore_list:
                 continue
+            analysis_url = tds[5].a.get('href')
+            stock_type = 'ordinary stock'
             # Defines working with preferred shares
             if len(tiker) == 5:
                 tiker = tiker[:4]
                 stock_type = 'preference stock'
             coast = tds[6].text
             self.companies_and_stock[tiker].update({stock_type: coast})
+            self.companies_and_stock[tiker].update({'analysis_url': analysis_url})
 
 
 class FinIndicatorsCompany:
     """Loads a page with the financial statements of the company and finds financial indicators on it."""
     last_fin_year = None
 
-    def __init__(self, tiker, ordinary_stock, preference_stock=None, url_pattern='', default_val=str()):
+    def __init__(self, tiker, base_url, analysis_url, ordinary_stock, preference_stock=None, default_val=''):
         self.downloader = HtmlFetcher()
         self.count_reports = None
         self.fresh_report = False
         self.default_val = default_val
 
         self.tiker = tiker
-        self.url = url_pattern.format(tiker)
+        if analysis_url:
+            self.url = urljoin(base_url, analysis_url)
+        else:
+            self.url = ''
         self.ordinary_stock = ordinary_stock
         self.preference_stock = preference_stock
 
@@ -83,7 +89,12 @@ class FinIndicatorsCompany:
 
     def fetch_fin_indicators(self):
         """Loads a page with the financial statements of the company and finds financial indicators on it."""
-        soup = BeautifulSoup(self.downloader.fetch_page(self.url), 'lxml')
+        try:
+            page = self.downloader.fetch_page(self.url)
+        except BadResponseCode:
+            return
+
+        soup = BeautifulSoup(page, 'lxml')
 
         self.count_reports = self.__count_reports(soup)
         self.fresh_report = self.__check_fresh_report(soup)
@@ -311,7 +322,7 @@ def controller():
 
     companies_ignore_list = ['IMOEX', 'RU000A0JTXM2', 'RU000A0JUQZ6', 'RU000A0JVEZ0', 'RU000A0JVT35', 'GEMA', 'RUSI']
     companies_list_url = 'https://smart-lab.ru/q/shares/'
-    company_url_templ = 'https://smart-lab.ru/q/{}/f/y/'
+    site_url = 'https://smart-lab.ru/'
 
     params = get_arg_params()
     if not params['file_name'] and not all(params['gsheet']):
@@ -328,8 +339,8 @@ def controller():
     for company, costs_stoks in companies.companies_and_stock.items():
         ordinary_stock = costs_stoks.get('ordinary stock', default_cell_val)
         preference_stock = costs_stoks.get('preference stock', default_cell_val)
-        companies_indicators[company] = FinIndicatorsCompany(company, ordinary_stock, preference_stock,
-                                                             company_url_templ, default_cell_val)
+        companies_indicators[company] = FinIndicatorsCompany(company, site_url, costs_stoks['analysis_url'],
+                                                             ordinary_stock, preference_stock, default_cell_val)
         companies_indicators[company].fetch_fin_indicators()
 
         print(companies_indicators[company].company_name, companies_indicators[company].tiker)
