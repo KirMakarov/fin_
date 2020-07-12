@@ -290,7 +290,7 @@ class Gtable:
 def save_to_gsheet(companies_indicators, table_url, google_key_file, start_cell, default_cell_val):
     """Save data to goggle table."""
     print('Create table')
-    num_list = 1
+    num_list = 3
     table = Gtable(table_url, num_list, google_key_file, start_cell)
     for indicators in companies_indicators.values():
         if indicators.ordinary_stock != default_cell_val:
@@ -324,7 +324,7 @@ def get_arg_params():
 
 def controller():
     # Starting cell position (row, column) for upload data to google table
-    start_cell = (2, 5)
+    start_cell = (3, 1)
     default_cell_val = str()
 
     companies_ignore_list = ['IMOEX', 'RU000A0JTXM2', 'RU000A0JUQZ6', 'RU000A0JVEZ0', 'RU000A0JVT35', 'GEMA', 'RUSI']
