@@ -86,6 +86,7 @@ class FinIndicatorsCompany:
         self.dividends_ordinary = self.dividends_preference = default_val
         # стоимость предприятия - EV | Чистые активы | балансовая стоимость
         self.enterprise_value = self.clean_assets = self.book_value = default_val
+        self.ebitda = self.net_debt = default_val
 
     def fetch_fin_indicators(self):
         """Loads a page with the financial statements of the company and finds financial indicators on it."""
@@ -112,6 +113,8 @@ class FinIndicatorsCompany:
         self.clean_assets = self.__find_ltm_value_in_tags_td(soup, 'net_assets')
         # Балансовая стоимость
         self.book_value = self.__find_ltm_value_in_tags_td(soup, 'book_value')
+        self.ebitda = self.__find_ltm_value_in_tags_td(soup, 'ebitda')
+        self.net_debt = self.__find_ltm_value_in_tags_td(soup, 'net_debt')
 
     def __find_ltm_value_in_tags_td(self, soup, field):
         tds = self.__get_row_in_table(soup, field)
@@ -211,6 +214,8 @@ class FinIndicatorsCompany:
             ('enterprise value', self.enterprise_value),
             ('clean assets', self.clean_assets),
             ('book value', self.book_value),
+            ('ebitda', self.ebitda),
+            ('net_debt', self.net_debt),
             ('dividends', self.dividends_ordinary),
         ])
 
@@ -228,6 +233,8 @@ class FinIndicatorsCompany:
             ('enterprise value', self.enterprise_value),
             ('clean assets', self.clean_assets),
             ('book value', self.book_value),
+            ('ebitda', self.ebitda),
+            ('net_debt', self.net_debt),
             ('dividends', self.dividends_preference),
         ])
 
