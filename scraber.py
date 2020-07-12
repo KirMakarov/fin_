@@ -109,7 +109,7 @@ class FinIndicatorsCompany:
         self.dividends_ordinary = self.__find_last_value_in_tags_td(soup, 'dividend')
         self.dividends_preference = self.__find_last_value_in_tags_td(soup, 'dividend_pr')
         # Чистые активы
-        self.clean_assets = self.__find_ltm_value_in_tags_td(soup, 'assets')
+        self.clean_assets = self.__find_ltm_value_in_tags_td(soup, 'net_assets')
         # Балансовая стоимость
         self.book_value = self.__find_ltm_value_in_tags_td(soup, 'book_value')
 
