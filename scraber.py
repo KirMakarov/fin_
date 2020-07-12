@@ -299,7 +299,7 @@ def save_to_gsheet(companies_indicators, table_url, google_key_file, start_cell,
             table.add_line_cells(indicators.indicators_preference)
     print('Upload table')
     table.upload()
-    print("Upload data to goggle table complete.")
+    print("Upload data to google table complete.")
 
 
 def get_arg_params():
@@ -334,7 +334,7 @@ def controller():
     params = get_arg_params()
     if not params['file_name'] and not all(params['gsheet']):
         print('No option selected for saving results. \nSee help message: "scraber.py -h" \nExit from app.')
-        exit(1)
+        raise ValueError('No option selected for saving results')
 
     companies_indicators = dict()
     FinIndicatorsCompany.calc_last_fin_year()
@@ -350,7 +350,10 @@ def controller():
                                                              ordinary_stock, preference_stock, default_cell_val)
         companies_indicators[company].fetch_fin_indicators()
 
-        print(companies_indicators[company].company_name, companies_indicators[company].ticker)
+        print(companies_indicators[company].company_name, '-', companies_indicators[company].ticker)
+
+    print('\nData fetched.\n')
+    print('- ' * 25)
 
     if params['file_name']:
         # Replacing invalid characters in a file name
