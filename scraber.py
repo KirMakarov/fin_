@@ -18,6 +18,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 
 class BadResponseCode(ConnectionError):
+    """Bad response code"""
     pass
 
 
@@ -59,9 +60,16 @@ class FinancialIndicatorsCompanies:
             if len(ticker) == 5:
                 ticker = ticker[:4]
                 stock_type = 'preference stock'
-            coast = tds[6].text
+            coast = self.__stock_coast(tds)
             self.companies_and_stock[ticker].update({stock_type: coast})
             self.companies_and_stock[ticker].update({'analysis_url': analysis_url})
+
+    @staticmethod
+    def __stock_coast(tds):
+        try:
+            return float(tds[6].text)
+        except ValueError:
+            return ''
 
 
 class FinIndicatorsCompany:
