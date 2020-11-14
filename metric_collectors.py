@@ -74,6 +74,7 @@ class FinIndicatorsCompany:
         # стоимость предприятия - EV | Чистые активы | балансовая стоимость
         self.enterprise_value = self.clean_assets = self.book_value = default_val
         self.ebitda = self.net_debt = default_val
+        self.proceeds = self.roe = self.roa = default_val
 
     def fetch_fin_indicators(self):
         """Loads a page with the financial statements of the company and finds financial indicators on it."""
@@ -94,6 +95,10 @@ class FinIndicatorsCompany:
         self.average_profit = self.__find_mean_value_in_tags_td(soup, 'net_income')
         self.capitalization = self.__find_ltm_value_in_tags_td(soup, 'market_cap')
         self.enterprise_value = self.__find_ltm_value_in_tags_td(soup, 'ev')
+        # Выручка
+        self.proceeds = self.__find_ltm_value_in_tags_td(soup, 'revenue')
+        self.roe = self.__find_ltm_value_in_tags_td(soup, 'roe')
+        self.roa = self.__find_ltm_value_in_tags_td(soup, 'roa')
         self.dividends_ordinary = self.__find_last_value_in_tags_td(soup, 'dividend')
         self.dividends_preference = self.__find_last_value_in_tags_td(soup, 'dividend_pr')
         # Чистые активы
@@ -165,7 +170,7 @@ class FinIndicatorsCompany:
     def __get_float_from_text(self, text):
         """Getting float value from string."""
         try:
-            return float(text.strip().replace(' ', ''))
+            return float(text.strip().replace(' ', '').replace('%', ''))
         except ValueError:
             return self.default_val
 
@@ -204,6 +209,9 @@ class FinIndicatorsCompany:
             ('ebitda', self.ebitda),
             ('net_debt', self.net_debt),
             ('dividends', self.dividends_ordinary),
+            ('proceeds', self.proceeds),
+            ('roe', self.roe),
+            ('roa', self.roa),
         ])
 
     @property
@@ -223,4 +231,7 @@ class FinIndicatorsCompany:
             ('ebitda', self.ebitda),
             ('net_debt', self.net_debt),
             ('dividends', self.dividends_preference),
+            ('proceeds', self.proceeds),
+            ('roe', self.roe),
+            ('roa', self.roa),
         ])
