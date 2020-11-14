@@ -5,8 +5,13 @@
 import re
 
 from uploaders import save_to_file, save_to_gsheet
-from utils import get_arg_params
+from utils import get_arg_params, Logger
 from metric_collectors import FinancialIndicatorsCompanies, FinIndicatorsCompany
+
+
+logger = Logger('scraber')
+logger.set_logs('console')
+logger.set_logs('file', logs_directory='.')
 
 
 def controller():
@@ -20,7 +25,7 @@ def controller():
 
     params = get_arg_params()
     if not params['file_name'] and not all(params['gsheet']):
-        print('No option selected for saving results. \nSee help message: "scraber.py -h" \nExit from app.')
+        logger.error('No option selected for saving results. \nSee help message: "scraber.py -h" \nExit from app.')
         raise ValueError('No option selected for saving results')
 
     companies_indicators = dict()
@@ -29,18 +34,19 @@ def controller():
     companies = FinancialIndicatorsCompanies(companies_list_url, companies_ignore_list)
     companies.fetch_companies()
 
-    print('Start fetch data.\n')
+    logger.info('Start fetch data.')
     for company, costs_stoks in companies.companies_and_stock.items():
         ordinary_stock = costs_stoks.get('ordinary stock', default_cell_val)
         preference_stock = costs_stoks.get('preference stock', default_cell_val)
         companies_indicators[company] = FinIndicatorsCompany(company, site_url, costs_stoks['analysis_url'],
                                                              ordinary_stock, preference_stock, default_cell_val)
         companies_indicators[company].fetch_fin_indicators()
+        company_name = companies_indicators[company].company_name
+        ticker = companies_indicators[company].ticker
+        logger.info(f'Getting metrics {company_name} ({ticker})')
 
-        print(companies_indicators[company].company_name, '-', companies_indicators[company].ticker)
-
-    print('\nData fetched.\n')
-    print('- ' * 25)
+    logger.info('Data fetched.')
+    logger.info('-' * 60)
 
     if params['file_name']:
         # Replacing invalid characters in a file name
@@ -48,6 +54,9 @@ def controller():
         save_to_file(companies_indicators, file_name, default_cell_val)
     if params['gsheet'][0]:
         save_to_gsheet(companies_indicators, *params['gsheet'], start_cell, default_cell_val)
+
+    logger.close_logs('console')
+    logger.close_logs('file')
 
 
 if __name__ == '__main__':

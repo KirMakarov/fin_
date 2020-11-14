@@ -6,6 +6,11 @@ import gspread
 
 from oauth2client.service_account import ServiceAccountCredentials
 
+from utils import Logger
+
+
+logger = Logger('scraber')
+
 
 class Gtable:
     """Class for upload cell list to google table."""
@@ -34,7 +39,7 @@ class Gtable:
 
 def save_to_gsheet(companies_indicators, table_url, google_key_file, start_cell, default_cell_val):
     """Save data to goggle table."""
-    print('Create table')
+    logger.info('Create table')
     num_list = 3
     table = Gtable(table_url, num_list, google_key_file, start_cell)
     for indicators in companies_indicators.values():
@@ -42,14 +47,14 @@ def save_to_gsheet(companies_indicators, table_url, google_key_file, start_cell,
             table.add_line_cells(indicators.indicators_ordinary)
         if indicators.preference_stock != default_cell_val:
             table.add_line_cells(indicators.indicators_preference)
-    print('Upload table')
+    logger.info('Upload table')
     table.upload()
-    print("Upload data to google table complete.")
+    logger.info("Upload data to google table complete.")
 
 
 def save_to_file(companies_indicators, file_path_and_name, default_cell_val=str()):
     """Save file on disk."""
-    print("Save to file.")
+    logger.info("Save to file.")
     with open(file_path_and_name, 'w') as result:
         header = False
         for indicators in companies_indicators.values():
@@ -67,4 +72,4 @@ def save_to_file(companies_indicators, file_path_and_name, default_cell_val=str(
                 line = '; '.join([str(elem) for elem in indicators.indicators_preference.values()])
                 result.write(line)
                 result.write('\n')
-    print("Write to file complete.")
+    logger.info("Write to file complete.")
