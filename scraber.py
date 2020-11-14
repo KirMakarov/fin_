@@ -23,14 +23,20 @@ class BadResponseCode(ConnectionError):
 
 
 class HtmlFetcher:
-    """HTML file downloader"""
-    @staticmethod
-    def fetch_page(url):
+    """HTML file downloader."""
+    _session = None
+
+    def __init__(self):
+        if not self._session:
+            __class__._session = requests.Session()
+
+    def fetch_page(self, url):
         """Download html page and return text from this page."""
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0',
         }
-        response = requests.get(url, headers=headers, timeout=5)
+
+        response = self._session.get(url, headers=headers, timeout=5)
         if response.status_code != requests.codes.ok:
             raise BadResponseCode('Url: "{}". Response code:{}'.format(url, response.status_code))
         return response.text
