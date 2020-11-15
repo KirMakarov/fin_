@@ -29,9 +29,12 @@ class HtmlFetcher:
             'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0',
         }
 
-        response = self._session.get(url, headers=headers, timeout=5)
+        try:
+            response = self._session.get(url, headers=headers, timeout=5)
+        except requests.exceptions:
+            raise ConnectionError(f'Failed to establish connection with "{url}"')
         if response.status_code != requests.codes.ok:
-            raise BadResponseCode('Url: "{}". Response code:{}'.format(url, response.status_code))
+            raise BadResponseCode(f'Url: "{url}". Response code:{response.status_code}')
         return response.text
 
 
@@ -61,7 +64,7 @@ class Logger:
     def set_logs(self, mode=None, message_level='info', logs_directory=None):
         """Set logger handlers."""
         if mode not in self.__loggers:
-            raise ValueError('Mode "{}" is not support'.format(mode))
+            raise ValueError('Mode "{mode}" is not support')
         self.__modes.append(mode)
         if mode == 'file':
             if not logs_directory:

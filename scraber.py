@@ -6,7 +6,7 @@ import re
 
 from uploaders import save_to_file, save_to_gsheet
 from utils import get_arg_params, Logger
-from metric_collectors import FinancialIndicatorsCompanies, FinIndicatorsCompany
+from metric_collectors import Companies, CompanyFinIndicators
 
 
 logger = Logger('scraber')
@@ -28,24 +28,22 @@ def controller():
         logger.error('No option selected for saving results. \nSee help message: "scraber.py -h" \nExit from app.')
         raise ValueError('No option selected for saving results')
 
+    companies = Companies(companies_list_url, companies_ignore_list)
+    companies.fetch()
+
+    logger.info('Fetch data has started.')
     companies_indicators = dict()
-    FinIndicatorsCompany.calc_last_fin_year()
-
-    companies = FinancialIndicatorsCompanies(companies_list_url, companies_ignore_list)
-    companies.fetch_companies()
-
-    logger.info('Start fetch data.')
-    for company, costs_stoks in companies.companies_and_stock.items():
-        ordinary_stock = costs_stoks.get('ordinary stock', default_cell_val)
-        preference_stock = costs_stoks.get('preference stock', default_cell_val)
-        companies_indicators[company] = FinIndicatorsCompany(company, site_url, costs_stoks['analysis_url'],
-                                                             ordinary_stock, preference_stock, default_cell_val)
-        companies_indicators[company].fetch_fin_indicators()
+    for company, indicators in companies.list.items():
+        ordinary_stock = indicators.get('ordinary stock', default_cell_val)
+        preference_stock = indicators.get('preference stock', default_cell_val)
+        company_information = CompanyFinIndicators(company, site_url, indicators['analysis_url'],
+                                                   ordinary_stock, preference_stock, default_cell_val)
+        companies_indicators[company] = company_information.fetch_fin_indicators()
         company_name = companies_indicators[company].company_name
         ticker = companies_indicators[company].ticker
         logger.info(f'Getting metrics {company_name} ({ticker})')
 
-    logger.info('Data fetched.')
+    logger.info('Data has fetched.')
     logger.info('-' * 60)
 
     if params['file_name']:

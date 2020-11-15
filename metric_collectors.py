@@ -4,33 +4,35 @@
 
 
 from collections import OrderedDict, defaultdict
+from dataclasses import dataclass
 from datetime import date
 from statistics import mean
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
-from utils import BadResponseCode, HtmlFetcher
+from utils import HtmlFetcher
 
 
-class FinancialIndicatorsCompanies:
+class Companies:
     """Loads a page with a list of companies and finds tickers and stock prices."""
-    def __init__(self, url, ignore_list):
-        self.url = url
-        self.companies_and_stock = defaultdict(dict)
-        self.ignore_list = ignore_list
-        self.downloader = HtmlFetcher()
 
-    def fetch_companies(self):
+    def __init__(self, url, ignore_list):
+        self._url = url
+        self._companies_and_stocks = defaultdict(dict)
+        self._ignore_list = ignore_list
+        self._downloader = HtmlFetcher()
+
+    def fetch(self):
         """Fetching list of companies."""
-        html = self.downloader.fetch_page(self.url)
+        html = self._downloader.fetch_page(self._url)
         soup = BeautifulSoup(html, 'lxml')
         tags_tr = soup.find('table', class_='simple-little-table trades-table').find_all('tr')
         # Thirst row skip because this is header
         for tag_tr in tags_tr[1:]:
             tds = tag_tr.find_all('td')
             ticker = tds[3].text
-            if not tds[5].a or ticker in self.ignore_list:
+            if not tds[5].a or ticker in self._ignore_list:
                 continue
             analysis_url = tds[5].a.get('href')
             stock_type = 'ordinary stock'
@@ -39,8 +41,12 @@ class FinancialIndicatorsCompanies:
                 ticker = ticker[:4]
                 stock_type = 'preference stock'
             coast = self.__stock_coast(tds)
-            self.companies_and_stock[ticker].update({stock_type: coast})
-            self.companies_and_stock[ticker].update({'analysis_url': analysis_url})
+            self.list[ticker].update({stock_type: coast})
+            self.list[ticker].update({'analysis_url': analysis_url})
+
+    @property
+    def list(self):
+        return self._companies_and_stocks
 
     @staticmethod
     def __stock_coast(tds):
@@ -51,103 +57,109 @@ class FinancialIndicatorsCompanies:
             return ''
 
 
-class FinIndicatorsCompany:
+class CompanyFinIndicators:
     """Loads a page with the financial statements of the company and finds financial indicators on it."""
     last_fin_year = None
 
     def __init__(self, ticker, base_url, analysis_url, ordinary_stock, preference_stock=None, default_val=''):
-        self.downloader = HtmlFetcher()
-        self.count_reports = None
-        self.fresh_report = False
-        self.default_val = default_val
+        if not self.last_fin_year:
+            self.calc_last_fin_year()
 
-        self.ticker = ticker
+        self._downloader = HtmlFetcher()
+
+        self._count_reports = None
+        self._fresh_report = False
+
+        self._default_val = default_val
+        self._ticker = ticker
+        self._ordinary_stock = ordinary_stock
+        self._preference_stock = preference_stock
+
         if analysis_url:
-            self.url = urljoin(base_url, analysis_url)
+            self._url = urljoin(base_url, analysis_url)
         else:
-            self.url = ''
-        self.ordinary_stock = ordinary_stock
-        self.preference_stock = preference_stock
-
-        self.company_name = self.profit = self.average_profit = self.capitalization = default_val
-        self.dividends_ordinary = self.dividends_preference = default_val
-        # стоимость предприятия - EV | Чистые активы | балансовая стоимость
-        self.enterprise_value = self.clean_assets = self.book_value = default_val
-        self.ebitda = self.net_debt = default_val
-        self.proceeds = self.roe = self.roa = default_val
+            self._url = ''
 
     def fetch_fin_indicators(self):
         """Loads a page with the financial statements of the company and finds financial indicators on it."""
+        indicators = CompanyIndicators(
+            default_val=self._default_val,
+            ticker=self._ticker,
+            ordinary_stock=self._ordinary_stock,
+            preference_stock=self._preference_stock
+        )
         try:
-            page = self.downloader.fetch_page(self.url)
-        except BadResponseCode:
-            return
+            page = self._downloader.fetch_page(self._url)
+        except ConnectionError:
+            return indicators
 
         soup = BeautifulSoup(page, 'lxml')
 
-        self.count_reports = self.__count_reports(soup)
-        self.fresh_report = self.__check_fresh_report(soup)
+        self._count_reports = self.__count_reports(soup)
+        self._fresh_report = self.__check_fresh_report(soup)
 
-        self.company_name = soup.find('h1').text.split('(')[0].strip()
+        indicators.company_name = soup.find('h1').text.split('(')[0].strip()
         # чистая прибыль
-        self.profit = self.__find_ltm_value_in_tags_td(soup, 'net_income')
+        indicators.profit = self.__find_ltm_value_in_tags_td(soup, 'net_income')
         # средняя чистая прибыль
-        self.average_profit = self.__find_mean_value_in_tags_td(soup, 'net_income')
-        self.capitalization = self.__find_ltm_value_in_tags_td(soup, 'market_cap')
-        self.enterprise_value = self.__find_ltm_value_in_tags_td(soup, 'ev')
+        indicators.average_profit = self.__find_mean_value_in_tags_td(soup, 'net_income')
+        indicators.capitalization = self.__find_ltm_value_in_tags_td(soup, 'market_cap')
+        indicators.enterprise_value = self.__find_ltm_value_in_tags_td(soup, 'ev')
         # Выручка
-        self.proceeds = self.__find_ltm_value_in_tags_td(soup, 'revenue')
-        self.roe = self.__find_ltm_value_in_tags_td(soup, 'roe')
-        self.roa = self.__find_ltm_value_in_tags_td(soup, 'roa')
-        self.dividends_ordinary = self.__find_last_value_in_tags_td(soup, 'dividend')
-        self.dividends_preference = self.__find_last_value_in_tags_td(soup, 'dividend_pr')
+        indicators.proceeds = self.__find_ltm_value_in_tags_td(soup, 'revenue')
+        indicators.roe = self.__find_ltm_value_in_tags_td(soup, 'roe')
+        indicators.roa = self.__find_ltm_value_in_tags_td(soup, 'roa')
+        indicators.dividends_ordinary = self.__find_last_value_in_tags_td(soup, 'dividend')
+        indicators.dividends_preference = self.__find_last_value_in_tags_td(soup, 'dividend_pr')
         # Чистые активы
-        self.clean_assets = self.__find_ltm_value_in_tags_td(soup, 'net_assets')
+        indicators.clean_assets = self.__find_ltm_value_in_tags_td(soup, 'net_assets')
         # Балансовая стоимость
-        self.book_value = self.__find_ltm_value_in_tags_td(soup, 'book_value')
-        self.ebitda = self.__find_ltm_value_in_tags_td(soup, 'ebitda')
-        self.net_debt = self.__find_ltm_value_in_tags_td(soup, 'net_debt')
+        indicators.book_value = self.__find_ltm_value_in_tags_td(soup, 'book_value')
+        indicators.ebitda = self.__find_ltm_value_in_tags_td(soup, 'ebitda')
+        indicators.net_debt = self.__find_ltm_value_in_tags_td(soup, 'net_debt')
+
+        return indicators
 
     def __find_ltm_value_in_tags_td(self, soup, field):
         tds = self.__get_row_in_table(soup, field)
         if not tds:
-            return self.default_val
+            return self._default_val
 
         # Column number ltm 2 after the last column of the report self.count_reports + 2
         # The number of the last column with the report is equal to the number of reports self.count_reports
-        num_ltm_column = self.count_reports + 2
+        num_ltm_column = self._count_reports + 2
         try:
             return self.__get_float_from_text(tds[num_ltm_column].text)
         except IndexError:
-            return self.default_val
+            return self._default_val
 
     def __find_mean_value_in_tags_td(self, soup, field):
-        if not self.fresh_report:
-            return self.default_val
+        if not self._fresh_report:
+            return self._default_val
 
         tds = self.__get_row_in_table(soup, field)
         if not tds:
-            return self.default_val
+            return self._default_val
 
         search_res = list()
         # The number of the last column with the report is equal to the number of reports self.count_reports
-        for tag_td in tds[1:self.count_reports + 1]:
+        for tag_td in tds[1:self._count_reports + 1]:
             indicator = self.__get_float_from_text(tag_td.text)
-            if indicator is self.default_val:
-                return self.default_val
+            if indicator is self._default_val:
+                return self._default_val
             search_res.append(indicator)
 
         return round(mean(search_res), 2)
 
     def __find_last_value_in_tags_td(self, soup, field):
-        if not self.fresh_report:
-            return self.default_val
+        if not self._fresh_report:
+            return self._default_val
 
         tds = self.__get_row_in_table(soup, field)
         if not tds:
-            return self.default_val
+            return self._default_val
         # self.count_reports is also the last year report column number
-        return self.__get_float_from_text(tds[self.count_reports].text)
+        return self.__get_float_from_text(tds[self._count_reports].text)
 
     @staticmethod
     def __get_row_in_table(soup, field):
@@ -159,7 +171,7 @@ class FinIndicatorsCompany:
     def __check_fresh_report(self, soup):
         """Checks the report for freshness."""
         try:
-            year_last_report = int(soup.find('tr', class_='header_row').find_all('td')[self.count_reports].text)
+            year_last_report = int(soup.find('tr', class_='header_row').find_all('td')[self._count_reports].text)
         except ValueError:
             return False
 
@@ -172,7 +184,7 @@ class FinIndicatorsCompany:
         try:
             return float(text.strip().replace(' ', '').replace('%', ''))
         except ValueError:
-            return self.default_val
+            return self._default_val
 
     @staticmethod
     def __count_reports(soup):
@@ -192,6 +204,33 @@ class FinIndicatorsCompany:
             cls.last_fin_year = today.year - 2
         else:
             cls.last_fin_year = today.year - 1
+
+
+@dataclass(repr=False, eq=False, order=False)
+class CompanyIndicators:
+    default_val: str = ''
+
+    ticker: str = default_val
+    ordinary_stock: str = default_val
+    preference_stock: str = default_val
+
+    company_name: str = default_val
+    profit: str = default_val
+    average_profit: str = default_val
+    capitalization: str = default_val
+    dividends_ordinary: str = default_val
+    dividends_preference: str = default_val
+    # стоимость предприятия - EV
+    enterprise_value: str = default_val
+    # чистые активы
+    clean_assets: str = default_val
+    # балансовая стоимость
+    book_value: str = default_val
+    ebitda: str = default_val
+    net_debt: str = default_val
+    proceeds: str = default_val
+    roe: str = default_val
+    roa: str = default_val
 
     @property
     def indicators_ordinary(self):
