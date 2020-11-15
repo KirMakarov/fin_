@@ -28,7 +28,7 @@ and read the paragraph “Using signed credentials” steps 1-3.
 
 ## Run
 ```sh
-python3.5 scraber.py [-g link_google_table, json_keyfile] [-f file_name.csv]
+python3.5 scraper.py [-g link_google_table, json_keyfile] [-f file_name.csv]
 ```
 ### Optional arguments:
 Argument       | Description
@@ -39,10 +39,10 @@ Argument       | Description
 
 ### Examples
 ```sh
-python3.5 scraber.py -f result.csv
+python3.5 scraper.py -f result.csv
 ```
 ```sh
-python3.5 scraber.py -g https://docs.google.com/spreadsheets/d/123qwe-zxc sheets-py-123a4q56.json
+python3.5 scraper.py -g https://docs.google.com/spreadsheets/d/123qwe-zxc sheets-py-123a4q56.json
 ```
 
 ## TODO

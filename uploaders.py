@@ -9,7 +9,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from utils import Logger
 
 
-logger = Logger('scraber')
+logger = Logger('scraper')
 
 
 class Gtable:

@@ -6,10 +6,10 @@ import re
 
 from uploaders import save_to_file, save_to_gsheet
 from utils import get_arg_params, Logger
-from metric_collectors import Companies, CompanyFinIndicators
+from metrics_collectors import Companies, CompanyFinIndicators
 
 
-logger = Logger('scraber')
+logger = Logger('scraper')
 logger.set_logs('console')
 logger.set_logs('file', logs_directory='.')
 
@@ -25,7 +25,7 @@ def controller():
 
     params = get_arg_params()
     if not params['file_name'] and not all(params['gsheet']):
-        logger.error('No option selected for saving results. \nSee help message: "scraber.py -h" \nExit from app.')
+        logger.error('No option selected for saving results. \nSee help message: "scraper.py -h" \nExit from app.')
         raise ValueError('No option selected for saving results')
 
     companies = Companies(companies_list_url, companies_ignore_list)
