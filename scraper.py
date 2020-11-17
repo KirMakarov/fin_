@@ -4,7 +4,9 @@
 
 import re
 
-from uploaders import save_to_file, save_to_gsheet
+from collections import namedtuple
+
+from uploaders import save_to_file, save_to_google_spreadsheets
 from utils import get_arg_params, Logger
 from metrics_collectors import Companies, CompanyFinIndicators
 
@@ -15,8 +17,9 @@ logger.set_logs('file', logs_directory='.')
 
 
 def controller():
-    # Starting cell position (row, column) for upload data to google table
-    start_cell = (3, 1)
+    # Number of the first sheet the table - 0. First cell number (A1) - "1, 1".
+    TableStartPosition = namedtuple('TableStartPosition', ('num_list', 'row', 'column'))
+    table_start_position = TableStartPosition(3, 3, 1),
     default_cell_val = str()
 
     companies_ignore_list = ['IMOEX', 'RU000A0JTXM2', 'RU000A0JUQZ6', 'RU000A0JVEZ0', 'RU000A0JVT35', 'GEMA', 'RUSI']
@@ -51,7 +54,11 @@ def controller():
         file_name = re.sub(r'[\\/:*?"<>|+]', '', params['file_name'])
         save_to_file(companies_indicators, file_name, default_cell_val)
     if params['gsheet'][0]:
-        save_to_gsheet(companies_indicators, *params['gsheet'], start_cell, default_cell_val)
+
+        save_to_google_spreadsheets(companies_indicators,
+                                    *params['gsheet'],
+                                    table_start_position,
+                                    default_cell_val)
 
     logger.close_logs('console')
     logger.close_logs('file')

@@ -16,4 +16,4 @@ __pycache__/
 venv/
 ENV/
 
-.log
+*.log

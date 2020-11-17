@@ -119,7 +119,7 @@ def get_arg_params():
                             dest='gsheet',
                             nargs=2,
                             default=[None, None],
-                            help='Link to google sheet and file name JSON keyfile from google. '
+                            help='Link to google spreadsheets and file name JSON keyfile from google. '
                                  'Details see in the README.MD'
                             )
     cmd_parser.add_argument('-f',
