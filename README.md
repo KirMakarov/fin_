@@ -16,7 +16,7 @@ Script fetch from https://smart-lab.ru/ companies and its financial indicators:
 Results save on disk to .csv file or upload to google table.
 
 ## Requirements
-* Python 3.5 and or higher
+* Python 3.7 and or higher
 * Python packages. For install run command from command line:
 ```sh
 pip3 install -r requirements.txt 
@@ -28,7 +28,7 @@ and read the paragraph “Using signed credentials” steps 1-3.
 
 ## Run
 ```sh
-python3.5 scraper.py [-g link_google_table, json_keyfile] [-f file_name.csv]
+python3 scraper.py [-g link_google_table, json_keyfile] [-f file_name.csv]
 ```
 ### Optional arguments:
 Argument       | Description
@@ -39,10 +39,10 @@ Argument       | Description
 
 ### Examples
 ```sh
-python3.5 scraper.py -f result.csv
+python3 scraper.py -f result.csv
 ```
 ```sh
-python3.5 scraper.py -g https://docs.google.com/spreadsheets/d/123qwe-zxc sheets-py-123a4q56.json
+python3 scraper.py -g https://docs.google.com/spreadsheets/d/123qwe-zxc sheets-py-123a4q56.json
 ```
 
 ## TODO
@@ -50,6 +50,6 @@ python3.5 scraper.py -g https://docs.google.com/spreadsheets/d/123qwe-zxc sheets
 * [x] save results to google sheet
 * [x] add config file
 * [ ] add progress bar
-* [ ] add method for calculate some new indicators
-* [ ] download html file in one connection
-* [ ] async html fetcher
+* [x] add method for calculate some new indicators
+* [x] download html file in one connection
+* [ ] ~~async html fetcher~~
